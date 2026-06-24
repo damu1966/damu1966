@@ -1,0 +1,495 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="GPS Logger" />
+  <title>GPS Logger</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #0a0a0f;
+      --surface: #13131a;
+      --card: #1c1c28;
+      --border: #2a2a3d;
+      --accent: #4f8ef7;
+      --accent2: #34d399;
+      --danger: #f87171;
+      --text: #e8e8f0;
+      --muted: #8888aa;
+      --mono: 'SF Mono', 'Menlo', 'Courier New', monospace;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, 'Helvetica Neue', sans-serif;
+      min-height: 100dvh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    header {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 16px 20px 12px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      position: sticky;
+      top: 0;
+      z-index: 10;
+    }
+
+    .logo {
+      width: 36px; height: 36px;
+      background: linear-gradient(135deg, var(--accent), var(--accent2));
+      border-radius: 10px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 18px;
+      flex-shrink: 0;
+    }
+
+    header h1 { font-size: 18px; font-weight: 700; letter-spacing: -0.3px; }
+    header p  { font-size: 11px; color: var(--muted); margin-top: 1px; }
+
+    .status-dot {
+      width: 8px; height: 8px; border-radius: 50%;
+      background: var(--muted);
+      margin-left: auto;
+      flex-shrink: 0;
+      transition: background 0.3s;
+    }
+    .status-dot.active  { background: var(--accent2); box-shadow: 0 0 6px var(--accent2); animation: pulse 1.4s infinite; }
+    .status-dot.error   { background: var(--danger); }
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
+
+    main { flex: 1; padding: 16px; display: flex; flex-direction: column; gap: 14px; }
+
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 16px;
+    }
+
+    .card-label {
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      color: var(--muted);
+      margin-bottom: 12px;
+    }
+
+    .coords-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+    .coord-item { display: flex; flex-direction: column; gap: 3px; }
+    .coord-item .label { font-size: 11px; color: var(--muted); }
+    .coord-item .value {
+      font-family: var(--mono);
+      font-size: 15px;
+      font-weight: 600;
+      color: var(--accent);
+      letter-spacing: -0.3px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .coord-item .value.alt  { color: var(--accent2); }
+    .coord-item .value.time { color: #c084fc; font-size: 12px; }
+    .coord-item .value.acc  { color: #fbbf24; font-size: 13px; }
+
+    .controls { display: flex; gap: 10px; }
+
+    button {
+      flex: 1;
+      border: none;
+      border-radius: 12px;
+      padding: 14px 12px;
+      font-size: 15px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: opacity 0.15s, transform 0.1s;
+      -webkit-tap-highlight-color: transparent;
+    }
+    button:active { transform: scale(0.97); opacity: 0.85; }
+
+    #btn-start  { background: var(--accent); color: #fff; }
+    #btn-stop   { background: var(--danger); color: #fff; display: none; }
+    #btn-export { background: var(--surface); color: var(--text); border: 1px solid var(--border); }
+    #btn-clear  { background: var(--surface); color: var(--muted);  border: 1px solid var(--border); flex: 0 0 auto; padding-left: 18px; padding-right: 18px; }
+
+    .secondary-controls { display: flex; gap: 10px; }
+
+    .stats-bar {
+      display: flex;
+      gap: 0;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      overflow: hidden;
+    }
+    .stat {
+      flex: 1;
+      padding: 10px 8px;
+      text-align: center;
+      border-right: 1px solid var(--border);
+    }
+    .stat:last-child { border-right: none; }
+    .stat .s-val { font-family: var(--mono); font-size: 17px; font-weight: 700; color: var(--text); }
+    .stat .s-lbl { font-size: 10px; color: var(--muted); margin-top: 2px; text-transform: uppercase; letter-spacing: 0.5px; }
+
+    .log-wrapper {
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+      margin: 0 -16px;
+      padding: 0 16px;
+    }
+    .log-scroll {
+      max-height: 320px;
+      overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-family: var(--mono);
+      font-size: 11px;
+      min-width: 460px;
+    }
+    thead th {
+      background: var(--surface);
+      color: var(--muted);
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.6px;
+      padding: 7px 8px;
+      text-align: left;
+      position: sticky;
+      top: 0;
+      border-bottom: 1px solid var(--border);
+    }
+    tbody tr { border-bottom: 1px solid rgba(255,255,255,0.04); }
+    tbody tr:last-child { border-bottom: none; }
+    tbody tr.new-row { animation: fadeIn 0.3s ease; }
+    @keyframes fadeIn { from { background: rgba(79,142,247,0.15); } to { background: transparent; } }
+    tbody td { padding: 6px 8px; color: var(--text); vertical-align: middle; white-space: nowrap; }
+    tbody td:first-child { color: var(--muted); }
+    tbody td.lat, tbody td.lon { color: var(--accent); }
+    tbody td.alt { color: var(--accent2); }
+    tbody td.ts  { color: #c084fc; }
+
+    .empty-state {
+      text-align: center;
+      padding: 40px 20px;
+      color: var(--muted);
+      font-size: 14px;
+    }
+    .empty-state .icon { font-size: 36px; margin-bottom: 10px; }
+
+    .banner {
+      background: rgba(248,113,113,0.12);
+      border: 1px solid rgba(248,113,113,0.3);
+      border-radius: 12px;
+      padding: 12px 14px;
+      font-size: 13px;
+      color: var(--danger);
+      display: none;
+      line-height: 1.5;
+    }
+    .banner.show { display: block; }
+
+    footer {
+      text-align: center;
+      font-size: 11px;
+      color: var(--muted);
+      padding: 12px 16px 24px;
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="logo">📍</div>
+  <div>
+    <h1>GPS Logger</h1>
+    <p>1 Hz · offline · no server</p>
+  </div>
+  <div class="status-dot" id="dot"></div>
+</header>
+
+<main>
+  <div class="banner" id="banner"></div>
+
+  <div class="card">
+    <div class="card-label">Live Position</div>
+    <div class="coords-grid">
+      <div class="coord-item">
+        <span class="label">Latitude</span>
+        <span class="value" id="live-lat">—</span>
+      </div>
+      <div class="coord-item">
+        <span class="label">Longitude</span>
+        <span class="value" id="live-lon">—</span>
+      </div>
+      <div class="coord-item">
+        <span class="label">Altitude (m)</span>
+        <span class="value alt" id="live-alt">—</span>
+      </div>
+      <div class="coord-item">
+        <span class="label">Accuracy (m)</span>
+        <span class="value acc" id="live-acc">—</span>
+      </div>
+      <div class="coord-item" style="grid-column: 1/-1">
+        <span class="label">Timestamp</span>
+        <span class="value time" id="live-ts">—</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="controls">
+    <button id="btn-start" onclick="startLogging()">▶ Start Logging</button>
+    <button id="btn-stop"  onclick="stopLogging()">■ Stop</button>
+  </div>
+
+  <div class="stats-bar">
+    <div class="stat">
+      <div class="s-val" id="stat-count">0</div>
+      <div class="s-lbl">Points</div>
+    </div>
+    <div class="stat">
+      <div class="s-val" id="stat-dur">0s</div>
+      <div class="s-lbl">Duration</div>
+    </div>
+    <div class="stat">
+      <div class="s-val" id="stat-rate">—</div>
+      <div class="s-lbl">Hz</div>
+    </div>
+  </div>
+
+  <div class="secondary-controls">
+    <button id="btn-export" onclick="exportCSV()">⬇ Export CSV</button>
+    <button id="btn-clear"  onclick="clearLog()">✕ Clear</button>
+  </div>
+
+  <div class="card" style="padding: 0; overflow: hidden;">
+    <div style="padding: 12px 16px 0;">
+      <div class="card-label">Log</div>
+    </div>
+    <div class="log-scroll" id="log-scroll">
+      <div class="log-wrapper">
+        <table id="log-table">
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Timestamp</th>
+              <th>Latitude</th>
+              <th>Longitude</th>
+              <th>Alt (m)</th>
+              <th>Acc (m)</th>
+            </tr>
+          </thead>
+          <tbody id="log-body"></tbody>
+        </table>
+      </div>
+      <div class="empty-state" id="empty-state">
+        <div class="icon">🛰</div>
+        Press <strong>Start Logging</strong> to begin recording GPS data
+      </div>
+    </div>
+  </div>
+</main>
+
+<footer>Open in iPhone Safari · Add to Home Screen for best experience</footer>
+
+<script>
+  let log      = [];
+  let watchId  = null;
+  let intervalId = null;
+  let startTime  = null;
+  let durTimer   = null;
+  let lastPos  = null;
+
+  const dot        = document.getElementById('dot');
+  const banner     = document.getElementById('banner');
+  const btnStart   = document.getElementById('btn-start');
+  const btnStop    = document.getElementById('btn-stop');
+  const liveFields = {
+    lat: document.getElementById('live-lat'),
+    lon: document.getElementById('live-lon'),
+    alt: document.getElementById('live-alt'),
+    acc: document.getElementById('live-acc'),
+    ts:  document.getElementById('live-ts'),
+  };
+  const statCount  = document.getElementById('stat-count');
+  const statDur    = document.getElementById('stat-dur');
+  const statRate   = document.getElementById('stat-rate');
+  const logBody    = document.getElementById('log-body');
+  const emptyState = document.getElementById('empty-state');
+  const logScroll  = document.getElementById('log-scroll');
+
+  function fmt(n, d) { return n == null ? '—' : Number(n).toFixed(d); }
+
+  function isoTs(ms) {
+    const d = new Date(ms);
+    const pad = n => String(n).padStart(2, '0');
+    const off = -d.getTimezoneOffset();
+    const sign = off >= 0 ? '+' : '-';
+    const h = Math.floor(Math.abs(off) / 60), m = Math.abs(off) % 60;
+    return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}` +
+           `T${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}` +
+           `.${String(d.getMilliseconds()).padStart(3,'0')}` +
+           `${sign}${pad(h)}:${pad(m)}`;
+  }
+
+  function showError(msg) {
+    banner.textContent = msg;
+    banner.classList.add('show');
+    dot.className = 'status-dot error';
+  }
+
+  function clearError() { banner.classList.remove('show'); }
+
+  function updateDuration() {
+    if (!startTime) return;
+    const elapsed = Math.floor((Date.now() - startTime) / 1000);
+    const h = Math.floor(elapsed / 3600);
+    const m = Math.floor((elapsed % 3600) / 60);
+    const s = elapsed % 60;
+    statDur.textContent = h > 0
+      ? `${h}h${String(m).padStart(2,'0')}m`
+      : m > 0 ? `${m}m${String(s).padStart(2,'0')}s`
+               : `${s}s`;
+  }
+
+  function recordSample() {
+    if (!lastPos) return;
+
+    const c   = lastPos.coords;
+    const ts  = lastPos.timestamp;
+    const rec = {
+      seq: log.length + 1,
+      ts,
+      lat: c.latitude,
+      lon: c.longitude,
+      alt: c.altitude,
+      acc: c.accuracy,
+    };
+    log.push(rec);
+
+    liveFields.lat.textContent = fmt(rec.lat, 7);
+    liveFields.lon.textContent = fmt(rec.lon, 7);
+    liveFields.alt.textContent = rec.alt != null ? fmt(rec.alt, 1) : '—';
+    liveFields.acc.textContent = fmt(rec.acc, 1);
+    liveFields.ts.textContent  = isoTs(ts);
+
+    statCount.textContent = log.length;
+    if (log.length > 1 && startTime) {
+      const elapsed = (Date.now() - startTime) / 1000;
+      statRate.textContent = (log.length / elapsed).toFixed(2);
+    }
+
+    if (emptyState.style.display !== 'none' || log.length === 1) {
+      emptyState.style.display = 'none';
+    }
+
+    const tr = document.createElement('tr');
+    tr.className = 'new-row';
+    tr.innerHTML =
+      `<td>${rec.seq}</td>` +
+      `<td class="ts">${isoTs(ts)}</td>` +
+      `<td class="lat">${fmt(rec.lat, 7)}</td>` +
+      `<td class="lon">${fmt(rec.lon, 7)}</td>` +
+      `<td class="alt">${rec.alt != null ? fmt(rec.alt, 1) : '—'}</td>` +
+      `<td>${fmt(rec.acc, 1)}</td>`;
+
+    logBody.insertBefore(tr, logBody.firstChild);
+  }
+
+  function startLogging() {
+    if (!('geolocation' in navigator)) {
+      showError('Geolocation is not available in this browser. Use Safari on iPhone.');
+      return;
+    }
+    clearError();
+
+    const opts = {
+      enableHighAccuracy: true,
+      timeout: 10000,
+      maximumAge: 0,
+    };
+
+    watchId = navigator.geolocation.watchPosition(
+      pos => { lastPos = pos; },
+      err => {
+        const msgs = {
+          1: 'Location permission denied. Go to Settings → Safari → Location and allow access.',
+          2: 'Position unavailable. Ensure GPS is enabled.',
+          3: 'Location request timed out.',
+        };
+        showError('⚠ ' + (msgs[err.code] || err.message));
+        stopLogging();
+      },
+      opts
+    );
+
+    startTime  = Date.now();
+    intervalId = setInterval(recordSample, 1000);
+    durTimer   = setInterval(updateDuration, 1000);
+
+    dot.className = 'status-dot active';
+    btnStart.style.display = 'none';
+    btnStop.style.display  = '';
+  }
+
+  function stopLogging() {
+    if (watchId   !== null) { navigator.geolocation.clearWatch(watchId); watchId = null; }
+    if (intervalId !== null) { clearInterval(intervalId); intervalId = null; }
+    if (durTimer   !== null) { clearInterval(durTimer);   durTimer   = null; }
+    lastPos = null;
+
+    dot.className = 'status-dot';
+    btnStart.style.display = '';
+    btnStop.style.display  = 'none';
+  }
+
+  function exportCSV() {
+    if (!log.length) { alert('No data to export yet.'); return; }
+
+    const header = 'seq,timestamp,latitude,longitude,altitude_m,accuracy_m\n';
+    const rows   = log.map(r =>
+      `${r.seq},${isoTs(r.ts)},${r.lat},${r.lon},${r.alt ?? ''},${r.acc}`
+    ).join('\n');
+
+    const blob = new Blob([header + rows], { type: 'text/csv' });
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    const name = `gps-log-${new Date().toISOString().slice(0,19).replace(/[:T]/g,'-')}.csv`;
+    a.href = url; a.download = name;
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(url); }, 1000);
+  }
+
+  function clearLog() {
+    if (log.length && !confirm(`Clear ${log.length} recorded points?`)) return;
+    log = [];
+    logBody.innerHTML = '';
+    emptyState.style.display = '';
+    statCount.textContent = '0';
+    statDur.textContent   = '0s';
+    statRate.textContent  = '—';
+    startTime = Date.now();
+    Object.values(liveFields).forEach(el => { el.textContent = '—'; });
+  }
+</script>
+</body>
+</html>

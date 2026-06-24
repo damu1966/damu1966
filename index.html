@@ -105,6 +105,7 @@
     .coord-item .value.alt  { color: var(--accent2); }
     .coord-item .value.time { color: #c084fc; font-size: 12px; }
     .coord-item .value.acc  { color: #fbbf24; font-size: 13px; }
+    .coord-item .value.spd  { color: #fb923c; font-size: 15px; }
 
     .controls { display: flex; gap: 10px; }
 
@@ -221,7 +222,7 @@
   <div class="logo">📍</div>
   <div>
     <h1>GPS Logger</h1>
-    <p>1 Hz · offline · no server</p>
+    <p>0.1 Hz · offline · no server</p>
   </div>
   <div class="status-dot" id="dot"></div>
 </header>
@@ -248,7 +249,11 @@
         <span class="label">Accuracy (m)</span>
         <span class="value acc" id="live-acc">—</span>
       </div>
-      <div class="coord-item" style="grid-column: 1/-1">
+      <div class="coord-item">
+        <span class="label">Speed (km/h)</span>
+        <span class="value spd" id="live-spd">—</span>
+      </div>
+      <div class="coord-item">
         <span class="label">Timestamp</span>
         <span class="value time" id="live-ts">—</span>
       </div>
@@ -295,6 +300,7 @@
               <th>Longitude</th>
               <th>Alt (m)</th>
               <th>Acc (m)</th>
+              <th>Speed (km/h)</th>
             </tr>
           </thead>
           <tbody id="log-body"></tbody>
@@ -327,6 +333,7 @@
     lon: document.getElementById('live-lon'),
     alt: document.getElementById('live-alt'),
     acc: document.getElementById('live-acc'),
+    spd: document.getElementById('live-spd'),
     ts:  document.getElementById('live-ts'),
   };
   const statCount  = document.getElementById('stat-count');
@@ -382,6 +389,7 @@
       lon: c.longitude,
       alt: c.altitude,
       acc: c.accuracy,
+      spd: c.speed,
     };
     log.push(rec);
 
@@ -389,6 +397,7 @@
     liveFields.lon.textContent = fmt(rec.lon, 7);
     liveFields.alt.textContent = rec.alt != null ? fmt(rec.alt, 1) : '—';
     liveFields.acc.textContent = fmt(rec.acc, 1);
+    liveFields.spd.textContent = rec.spd != null ? fmt(rec.spd * 3.6, 1) : '—';
     liveFields.ts.textContent  = isoTs(ts);
 
     statCount.textContent = log.length;
@@ -409,7 +418,8 @@
       `<td class="lat">${fmt(rec.lat, 7)}</td>` +
       `<td class="lon">${fmt(rec.lon, 7)}</td>` +
       `<td class="alt">${rec.alt != null ? fmt(rec.alt, 1) : '—'}</td>` +
-      `<td>${fmt(rec.acc, 1)}</td>`;
+      `<td>${fmt(rec.acc, 1)}</td>` +
+      `<td style="color:#fb923c">${rec.spd != null ? fmt(rec.spd * 3.6, 1) : '—'}</td>`;
 
     logBody.insertBefore(tr, logBody.firstChild);
   }
@@ -442,7 +452,7 @@
     );
 
     startTime  = Date.now();
-    intervalId = setInterval(recordSample, 1000);
+    intervalId = setInterval(recordSample, 10000);
     durTimer   = setInterval(updateDuration, 1000);
 
     dot.className = 'status-dot active';
@@ -464,9 +474,9 @@
   function exportCSV() {
     if (!log.length) { alert('No data to export yet.'); return; }
 
-    const header = 'seq,timestamp,latitude,longitude,altitude_m,accuracy_m\n';
+    const header = 'seq,timestamp,latitude,longitude,altitude_m,accuracy_m,speed_kmh\n';
     const rows   = log.map(r =>
-      `${r.seq},${isoTs(r.ts)},${r.lat},${r.lon},${r.alt ?? ''},${r.acc}`
+      `${r.seq},${isoTs(r.ts)},${r.lat},${r.lon},${r.alt ?? ''},${r.acc},${r.spd != null ? (r.spd * 3.6).toFixed(2) : ''}`
     ).join('\n');
 
     const blob = new Blob([header + rows], { type: 'text/csv' });

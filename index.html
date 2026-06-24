@@ -63,8 +63,8 @@
       flex-shrink: 0;
       transition: background 0.3s;
     }
-    .status-dot.active  { background: var(--accent2); box-shadow: 0 0 6px var(--accent2); animation: pulse 1.4s infinite; }
-    .status-dot.error   { background: var(--danger); }
+    .status-dot.active { background: var(--accent2); box-shadow: 0 0 6px var(--accent2); animation: pulse 1.4s infinite; }
+    .status-dot.error  { background: var(--danger); }
     @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
 
     main { flex: 1; padding: 16px; display: flex; flex-direction: column; gap: 14px; }
@@ -105,7 +105,7 @@
     .coord-item .value.alt  { color: var(--accent2); }
     .coord-item .value.time { color: #c084fc; font-size: 12px; }
     .coord-item .value.acc  { color: #fbbf24; font-size: 13px; }
-    .coord-item .value.spd  { color: #fb923c; font-size: 15px; }
+    .coord-item .value.spd  { color: #fb923c; }
 
     .controls { display: flex; gap: 10px; }
 
@@ -125,13 +125,12 @@
     #btn-start  { background: var(--accent); color: #fff; }
     #btn-stop   { background: var(--danger); color: #fff; display: none; }
     #btn-export { background: var(--surface); color: var(--text); border: 1px solid var(--border); }
-    #btn-clear  { background: var(--surface); color: var(--muted);  border: 1px solid var(--border); flex: 0 0 auto; padding-left: 18px; padding-right: 18px; }
+    #btn-clear  { background: var(--surface); color: var(--muted); border: 1px solid var(--border); flex: 0 0 auto; padding-left: 18px; padding-right: 18px; }
 
     .secondary-controls { display: flex; gap: 10px; }
 
     .stats-bar {
       display: flex;
-      gap: 0;
       background: var(--surface);
       border: 1px solid var(--border);
       border-radius: 12px;
@@ -147,6 +146,58 @@
     .stat .s-val { font-family: var(--mono); font-size: 17px; font-weight: 700; color: var(--text); }
     .stat .s-lbl { font-size: 10px; color: var(--muted); margin-top: 2px; text-transform: uppercase; letter-spacing: 0.5px; }
 
+    .autosave-bar {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      font-size: 12px;
+      color: var(--muted);
+      padding: 2px 0;
+    }
+    .autosave-bar .dot {
+      width: 6px; height: 6px; border-radius: 50%;
+      background: var(--muted);
+      flex-shrink: 0;
+    }
+    .autosave-bar.saved .dot { background: var(--accent2); }
+    .autosave-bar.saved      { color: var(--accent2); }
+
+    .restore-banner {
+      background: rgba(52,211,153,0.1);
+      border: 1px solid rgba(52,211,153,0.35);
+      border-radius: 14px;
+      padding: 14px 16px;
+      display: none;
+    }
+    .restore-banner.show { display: block; }
+    .restore-banner p {
+      font-size: 13px;
+      color: var(--accent2);
+      margin-bottom: 10px;
+      line-height: 1.5;
+    }
+    .restore-banner .rb-btns { display: flex; gap: 8px; }
+    .restore-banner button {
+      padding: 10px 12px;
+      font-size: 13px;
+      border-radius: 10px;
+    }
+    .rb-restore { background: var(--accent2); color: #0a0a0f; }
+    .rb-discard { background: var(--surface); color: var(--muted); border: 1px solid var(--border); }
+
+    .error-banner {
+      background: rgba(248,113,113,0.12);
+      border: 1px solid rgba(248,113,113,0.3);
+      border-radius: 12px;
+      padding: 12px 14px;
+      font-size: 13px;
+      color: var(--danger);
+      display: none;
+      line-height: 1.5;
+    }
+    .error-banner.show { display: block; }
+
     .log-wrapper {
       overflow-x: auto;
       -webkit-overflow-scrolling: touch;
@@ -158,13 +209,12 @@
       overflow-y: auto;
       -webkit-overflow-scrolling: touch;
     }
-
     table {
       width: 100%;
       border-collapse: collapse;
       font-family: var(--mono);
       font-size: 11px;
-      min-width: 460px;
+      min-width: 500px;
     }
     thead th {
       background: var(--surface);
@@ -187,6 +237,7 @@
     tbody td.lat, tbody td.lon { color: var(--accent); }
     tbody td.alt { color: var(--accent2); }
     tbody td.ts  { color: #c084fc; }
+    tbody td.spd { color: #fb923c; }
 
     .empty-state {
       text-align: center;
@@ -195,18 +246,6 @@
       font-size: 14px;
     }
     .empty-state .icon { font-size: 36px; margin-bottom: 10px; }
-
-    .banner {
-      background: rgba(248,113,113,0.12);
-      border: 1px solid rgba(248,113,113,0.3);
-      border-radius: 12px;
-      padding: 12px 14px;
-      font-size: 13px;
-      color: var(--danger);
-      display: none;
-      line-height: 1.5;
-    }
-    .banner.show { display: block; }
 
     footer {
       text-align: center;
@@ -222,13 +261,21 @@
   <div class="logo">📍</div>
   <div>
     <h1>GPS Logger</h1>
-    <p>0.1 Hz · offline · no server</p>
+    <p>10s interval · auto-save every 5 min</p>
   </div>
   <div class="status-dot" id="dot"></div>
 </header>
 
 <main>
-  <div class="banner" id="banner"></div>
+  <div class="restore-banner" id="restore-banner">
+    <p id="restore-msg"></p>
+    <div class="rb-btns">
+      <button class="rb-restore" onclick="restoreSession()">Restore Session</button>
+      <button class="rb-discard" onclick="discardSaved()">Discard</button>
+    </div>
+  </div>
+
+  <div class="error-banner" id="error-banner"></div>
 
   <div class="card">
     <div class="card-label">Live Position</div>
@@ -280,6 +327,11 @@
     </div>
   </div>
 
+  <div class="autosave-bar" id="autosave-bar">
+    <span class="dot"></span>
+    <span id="autosave-label">Auto-save every 5 min</span>
+  </div>
+
   <div class="secondary-controls">
     <button id="btn-export" onclick="exportCSV()">⬇ Export CSV</button>
     <button id="btn-clear"  onclick="clearLog()">✕ Clear</button>
@@ -291,7 +343,7 @@
     </div>
     <div class="log-scroll" id="log-scroll">
       <div class="log-wrapper">
-        <table id="log-table">
+        <table>
           <thead>
             <tr>
               <th>#</th>
@@ -317,17 +369,30 @@
 <footer>Open in iPhone Safari · Add to Home Screen for best experience</footer>
 
 <script>
-  let log      = [];
-  let watchId  = null;
-  let intervalId = null;
-  let startTime  = null;
-  let durTimer   = null;
-  let lastPos  = null;
+  const AUTOSAVE_KEY      = 'gps-logger-v1';
+  const AUTOSAVE_INTERVAL = 5 * 60 * 1000;
 
-  const dot        = document.getElementById('dot');
-  const banner     = document.getElementById('banner');
-  const btnStart   = document.getElementById('btn-start');
-  const btnStop    = document.getElementById('btn-stop');
+  let log          = [];
+  let watchId      = null;
+  let sampleTimer  = null;
+  let durTimer     = null;
+  let autoSaveTimer = null;
+  let startTime    = null;
+  let lastPos      = null;
+
+  const dot            = document.getElementById('dot');
+  const errorBanner    = document.getElementById('error-banner');
+  const restoreBanner  = document.getElementById('restore-banner');
+  const restoreMsg     = document.getElementById('restore-msg');
+  const btnStart       = document.getElementById('btn-start');
+  const btnStop        = document.getElementById('btn-stop');
+  const autosaveBar    = document.getElementById('autosave-bar');
+  const autosaveLabel  = document.getElementById('autosave-label');
+  const statCount      = document.getElementById('stat-count');
+  const statDur        = document.getElementById('stat-dur');
+  const statRate       = document.getElementById('stat-rate');
+  const logBody        = document.getElementById('log-body');
+  const emptyState     = document.getElementById('empty-state');
   const liveFields = {
     lat: document.getElementById('live-lat'),
     lon: document.getElementById('live-lon'),
@@ -336,34 +401,34 @@
     spd: document.getElementById('live-spd'),
     ts:  document.getElementById('live-ts'),
   };
-  const statCount  = document.getElementById('stat-count');
-  const statDur    = document.getElementById('stat-dur');
-  const statRate   = document.getElementById('stat-rate');
-  const logBody    = document.getElementById('log-body');
-  const emptyState = document.getElementById('empty-state');
-  const logScroll  = document.getElementById('log-scroll');
 
   function fmt(n, d) { return n == null ? '—' : Number(n).toFixed(d); }
 
   function isoTs(ms) {
-    const d = new Date(ms);
-    const pad = n => String(n).padStart(2, '0');
-    const off = -d.getTimezoneOffset();
+    const d    = new Date(ms);
+    const pad  = n => String(n).padStart(2, '0');
+    const off  = -d.getTimezoneOffset();
     const sign = off >= 0 ? '+' : '-';
-    const h = Math.floor(Math.abs(off) / 60), m = Math.abs(off) % 60;
+    const hh   = Math.floor(Math.abs(off) / 60);
+    const mm   = Math.abs(off) % 60;
     return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}` +
            `T${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}` +
            `.${String(d.getMilliseconds()).padStart(3,'0')}` +
-           `${sign}${pad(h)}:${pad(m)}`;
+           `${sign}${pad(hh)}:${pad(mm)}`;
+  }
+
+  function timeLabel(ms) {
+    const d = new Date(ms);
+    const pad = n => String(n).padStart(2, '0');
+    return `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
   }
 
   function showError(msg) {
-    banner.textContent = msg;
-    banner.classList.add('show');
+    errorBanner.textContent = msg;
+    errorBanner.classList.add('show');
     dot.className = 'status-dot error';
   }
-
-  function clearError() { banner.classList.remove('show'); }
+  function clearError() { errorBanner.classList.remove('show'); }
 
   function updateDuration() {
     if (!startTime) return;
@@ -377,14 +442,66 @@
                : `${s}s`;
   }
 
+  function autoSave() {
+    if (!log.length) return;
+    try {
+      localStorage.setItem(AUTOSAVE_KEY, JSON.stringify({
+        savedAt: Date.now(),
+        startTime,
+        log,
+      }));
+      autosaveBar.className = 'autosave-bar saved';
+      autosaveLabel.textContent = `Auto-saved at ${timeLabel(Date.now())} (${log.length} pts)`;
+    } catch (e) {
+      autosaveLabel.textContent = 'Auto-save failed (storage full?)';
+    }
+  }
+
+  function discardSaved() {
+    localStorage.removeItem(AUTOSAVE_KEY);
+    restoreBanner.classList.remove('show');
+  }
+
+  function restoreSession() {
+    restoreBanner.classList.remove('show');
+    try {
+      const raw = localStorage.getItem(AUTOSAVE_KEY);
+      if (!raw) return;
+      const saved = JSON.parse(raw);
+      log       = saved.log || [];
+      startTime = saved.startTime || Date.now();
+      logBody.innerHTML = '';
+      emptyState.style.display = 'none';
+      log.forEach(rec => appendRow(rec, false));
+      statCount.textContent = log.length;
+      updateDuration();
+      autosaveBar.className = 'autosave-bar saved';
+      autosaveLabel.textContent = `Restored ${log.length} pts from ${timeLabel(saved.savedAt)}`;
+    } catch (e) {
+      localStorage.removeItem(AUTOSAVE_KEY);
+    }
+  }
+
+  function appendRow(rec, animate) {
+    const tr = document.createElement('tr');
+    if (animate) tr.className = 'new-row';
+    tr.innerHTML =
+      `<td>${rec.seq}</td>` +
+      `<td class="ts">${isoTs(rec.ts)}</td>` +
+      `<td class="lat">${fmt(rec.lat, 7)}</td>` +
+      `<td class="lon">${fmt(rec.lon, 7)}</td>` +
+      `<td class="alt">${rec.alt != null ? fmt(rec.alt, 1) : '—'}</td>` +
+      `<td>${fmt(rec.acc, 1)}</td>` +
+      `<td class="spd">${rec.spd != null ? fmt(rec.spd * 3.6, 1) : '—'}</td>`;
+    logBody.insertBefore(tr, logBody.firstChild);
+  }
+
   function recordSample() {
     if (!lastPos) return;
-
     const c   = lastPos.coords;
-    const ts  = lastPos.timestamp;
     const rec = {
       seq: log.length + 1,
-      ts,
+      ts:  lastPos.timestamp,
       lat: c.latitude,
       lon: c.longitude,
       alt: c.altitude,
@@ -392,98 +509,74 @@
       spd: c.speed,
     };
     log.push(rec);
-
     liveFields.lat.textContent = fmt(rec.lat, 7);
     liveFields.lon.textContent = fmt(rec.lon, 7);
     liveFields.alt.textContent = rec.alt != null ? fmt(rec.alt, 1) : '—';
     liveFields.acc.textContent = fmt(rec.acc, 1);
     liveFields.spd.textContent = rec.spd != null ? fmt(rec.spd * 3.6, 1) : '—';
-    liveFields.ts.textContent  = isoTs(ts);
-
+    liveFields.ts.textContent  = isoTs(rec.ts);
     statCount.textContent = log.length;
     if (log.length > 1 && startTime) {
       const elapsed = (Date.now() - startTime) / 1000;
       statRate.textContent = (log.length / elapsed).toFixed(2);
     }
-
-    if (emptyState.style.display !== 'none' || log.length === 1) {
-      emptyState.style.display = 'none';
-    }
-
-    const tr = document.createElement('tr');
-    tr.className = 'new-row';
-    tr.innerHTML =
-      `<td>${rec.seq}</td>` +
-      `<td class="ts">${isoTs(ts)}</td>` +
-      `<td class="lat">${fmt(rec.lat, 7)}</td>` +
-      `<td class="lon">${fmt(rec.lon, 7)}</td>` +
-      `<td class="alt">${rec.alt != null ? fmt(rec.alt, 1) : '—'}</td>` +
-      `<td>${fmt(rec.acc, 1)}</td>` +
-      `<td style="color:#fb923c">${rec.spd != null ? fmt(rec.spd * 3.6, 1) : '—'}</td>`;
-
-    logBody.insertBefore(tr, logBody.firstChild);
+    emptyState.style.display = 'none';
+    appendRow(rec, true);
   }
 
   function startLogging() {
     if (!('geolocation' in navigator)) {
-      showError('Geolocation is not available in this browser. Use Safari on iPhone.');
+      showError('Geolocation not available. Use Safari on iPhone.');
       return;
     }
     clearError();
-
-    const opts = {
-      enableHighAccuracy: true,
-      timeout: 10000,
-      maximumAge: 0,
-    };
-
     watchId = navigator.geolocation.watchPosition(
       pos => { lastPos = pos; },
       err => {
         const msgs = {
-          1: 'Location permission denied. Go to Settings → Safari → Location and allow access.',
+          1: 'Location permission denied. Go to Settings → Privacy → Location Services → Safari → Allow.',
           2: 'Position unavailable. Ensure GPS is enabled.',
           3: 'Location request timed out.',
         };
         showError('⚠ ' + (msgs[err.code] || err.message));
         stopLogging();
       },
-      opts
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
     );
-
-    startTime  = Date.now();
-    intervalId = setInterval(recordSample, 10000);
-    durTimer   = setInterval(updateDuration, 1000);
-
-    dot.className = 'status-dot active';
-    btnStart.style.display = 'none';
-    btnStop.style.display  = 'block';
+    if (!startTime) startTime = Date.now();
+    sampleTimer   = setInterval(recordSample,  10000);
+    durTimer      = setInterval(updateDuration, 1000);
+    autoSaveTimer = setInterval(autoSave, AUTOSAVE_INTERVAL);
+    dot.className           = 'status-dot active';
+    btnStart.style.display  = 'none';
+    btnStop.style.display   = 'block';
+    autosaveBar.className   = 'autosave-bar';
+    autosaveLabel.textContent = 'Auto-saving every 5 min…';
   }
 
   function stopLogging() {
-    if (watchId   !== null) { navigator.geolocation.clearWatch(watchId); watchId = null; }
-    if (intervalId !== null) { clearInterval(intervalId); intervalId = null; }
-    if (durTimer   !== null) { clearInterval(durTimer);   durTimer   = null; }
+    if (watchId       !== null) { navigator.geolocation.clearWatch(watchId); watchId = null; }
+    if (sampleTimer   !== null) { clearInterval(sampleTimer);    sampleTimer   = null; }
+    if (durTimer      !== null) { clearInterval(durTimer);       durTimer      = null; }
+    if (autoSaveTimer !== null) { clearInterval(autoSaveTimer);  autoSaveTimer = null; }
     lastPos = null;
-
-    dot.className = 'status-dot';
+    autoSave();
+    dot.className          = 'status-dot';
     btnStart.style.display = 'block';
     btnStop.style.display  = 'none';
   }
 
   function exportCSV() {
     if (!log.length) { alert('No data to export yet.'); return; }
-
     const header = 'seq,timestamp,latitude,longitude,altitude_m,accuracy_m,speed_kmh\n';
     const rows   = log.map(r =>
       `${r.seq},${isoTs(r.ts)},${r.lat},${r.lon},${r.alt ?? ''},${r.acc},${r.spd != null ? (r.spd * 3.6).toFixed(2) : ''}`
     ).join('\n');
-
     const blob = new Blob([header + rows], { type: 'text/csv' });
     const url  = URL.createObjectURL(blob);
     const a    = document.createElement('a');
-    const name = `gps-log-${new Date().toISOString().slice(0,19).replace(/[:T]/g,'-')}.csv`;
-    a.href = url; a.download = name;
+    a.href     = url;
+    a.download = `gps-log-${new Date().toISOString().slice(0,19).replace(/[:T]/g,'-')}.csv`;
     document.body.appendChild(a);
     a.click();
     setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(url); }, 1000);
@@ -491,15 +584,33 @@
 
   function clearLog() {
     if (log.length && !confirm(`Clear ${log.length} recorded points?`)) return;
-    log = [];
+    log = []; startTime = null;
     logBody.innerHTML = '';
     emptyState.style.display = '';
     statCount.textContent = '0';
     statDur.textContent   = '0s';
     statRate.textContent  = '—';
-    startTime = Date.now();
+    autosaveBar.className = 'autosave-bar';
+    autosaveLabel.textContent = 'Auto-save every 5 min';
     Object.values(liveFields).forEach(el => { el.textContent = '—'; });
+    localStorage.removeItem(AUTOSAVE_KEY);
   }
+
+  (function checkSavedSession() {
+    try {
+      const raw = localStorage.getItem(AUTOSAVE_KEY);
+      if (!raw) return;
+      const saved = JSON.parse(raw);
+      if (!saved.log || !saved.log.length) return;
+      const age = Math.round((Date.now() - saved.savedAt) / 60000);
+      restoreMsg.textContent =
+        `Found a saved session with ${saved.log.length} point${saved.log.length !== 1 ? 's' : ''}, ` +
+        `saved ${age < 1 ? 'just now' : age + ' min ago'}. Restore it?`;
+      restoreBanner.classList.add('show');
+    } catch (e) {
+      localStorage.removeItem(AUTOSAVE_KEY);
+    }
+  })();
 </script>
 </body>
 </html>
